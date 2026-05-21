@@ -27,12 +27,10 @@ public class VikingSoapItem extends Item {
                 if (!player.getAbilities().instabuild) {
                     stack.shrink(1);
                 }
-                player.sendSystemMessage(Component.literal(
-                    "§aVous vous lavez avec le savon viking... L'odeur de cendre et de suif disparaît."));
+                player.sendSystemMessage(Component.literal("§8§oVous vous lavez avec le savon viking... L'odeur de cendre et de suif disparaît."));
                 return InteractionResultHolder.consume(stack);
             } else {
-                player.sendSystemMessage(Component.literal(
-                    "§eVous devez être immergé dans une étendue d'eau suffisante pour utiliser le savon."));
+                player.sendSystemMessage(Component.literal("§8§oVous devez être immergé dans une étendue d'eau suffisante pour utiliser le savon."));
                 return InteractionResultHolder.fail(stack);
             }
         }

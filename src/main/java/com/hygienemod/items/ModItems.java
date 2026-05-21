@@ -1,7 +1,9 @@
 package com.hygienemod.items;
 
 import com.hygienemod.HygieneMod;
+import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
+import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
@@ -16,5 +18,12 @@ public class ModItems {
 
     public static void register(IEventBus bus) {
         ITEMS.register(bus);
+        bus.addListener(ModItems::addCreative);
+    }
+
+    private static void addCreative(BuildCreativeModeTabContentsEvent event) {
+        if (event.getTabKey() == CreativeModeTabs.INGREDIENTS) {
+            event.accept(VIKING_SOAP);
+        }
     }
 }

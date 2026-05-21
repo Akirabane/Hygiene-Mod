@@ -43,13 +43,18 @@ public class HygieneEventHandler {
             UUID uuid = player.getUUID();
             HygieneManager.initPlayer(uuid);
 
+            // --- Créatif : immunité totale ---
+            if (player.isCreative()) {
+                HygieneManager.resetBath(uuid);
+                continue;
+            }
+
             // --- Détection bain ---
             if (isInQualifyingWater(player)) {
                 int prevLevel = HygieneManager.getDirtLevel(uuid);
                 HygieneManager.resetBath(uuid);
                 if (prevLevel > 0) {
-                    player.sendSystemMessage(Component.literal(
-                        "§aL'eau froide emporte l'odeur. Vous vous sentez propre."));
+                    player.sendSystemMessage(Component.literal("§8§oL'eau froide emporte l'odeur. Vous vous sentez propre."));
                 }
                 continue;
             }
@@ -57,32 +62,39 @@ public class HygieneEventHandler {
             int dirtLevel   = HygieneManager.getDirtLevel(uuid);
             int lastNotified = HygieneManager.getLastNotifiedLevel(uuid);
 
-            // --- Niveau 1 : message discret au joueur lui-même ---
+            // --- Transitions : message au joueur lui-même à chaque nouveau niveau ---
             if (dirtLevel >= 1 && lastNotified < 1) {
-                player.sendSystemMessage(Component.literal(
-                    "§7Vous commencez à sentir mauvais..."));
+                player.sendSystemMessage(Component.literal("§8§oVous commencez à sentir mauvais..."));
                 HygieneManager.setLastNotifiedLevel(uuid, 1);
+                lastNotified = 1;
+            }
+            if (dirtLevel >= 2 && lastNotified < 2) {
+                player.sendSystemMessage(Component.literal("§8§oL'odeur se fait plus prononcée... Vous feriez mieux de vous laver."));
+                HygieneManager.setLastNotifiedLevel(uuid, 2);
+                lastNotified = 2;
+            }
+            if (dirtLevel >= 3 && lastNotified < 3) {
+                player.sendSystemMessage(Component.literal("§8§oVous sentez vraiment très mauvais. Les gens autour de vous s'éloignent..."));
+                HygieneManager.setLastNotifiedLevel(uuid, 3);
+                lastNotified = 3;
+            }
+            if (dirtLevel >= 4 && lastNotified < 4) {
+                player.sendSystemMessage(Component.literal("§8§oVous êtes nauséabond. Votre propre odeur vous donne envie de vomir."));
+                HygieneManager.setLastNotifiedLevel(uuid, 4);
+                lastNotified = 4;
             }
 
             // --- Niveau 2 : message aux joueurs proches (< 3 blocs) ---
             if (dirtLevel >= 2) {
-                if (lastNotified < 2) {
-                    HygieneManager.setLastNotifiedLevel(uuid, 2);
-                }
                 for (ServerPlayer nearby : getNearbyPlayers(player, server, 3.0)) {
                     if (HygieneManager.tryLevel2Message(uuid, nearby.getUUID())) {
-                        nearby.sendSystemMessage(Component.literal(
-                            "§6Une personne proche semble dégager une odeur inconfortable..."));
+                        nearby.sendSystemMessage(Component.literal("§8§oUne personne proche semble dégager une odeur inconfortable..."));
                     }
                 }
             }
 
-            // --- Niveau 3 : nausée après 5 s de proximité (< 5 blocs) ---
+            // --- Niveau 3 : nausée aux joueurs proches après 5 s (< 5 blocs) ---
             if (dirtLevel >= 3) {
-                if (lastNotified < 3) {
-                    HygieneManager.setLastNotifiedLevel(uuid, 3);
-                }
-
                 List<ServerPlayer> nearbyPlayers = getNearbyPlayers(player, server, 5.0);
                 Set<UUID> nearbyUUIDs = new HashSet<>();
 
@@ -92,11 +104,9 @@ public class HygieneEventHandler {
 
                     long firstSeen = HygieneManager.getProximityFirstSeen(uuid, nearbyUUID, now);
                     if (now - firstSeen >= PROXIMITY_MS) {
-                        // Nausée niveau 1 en continu (40 ticks = 2 s, ré-appliquée chaque seconde)
-                        nearby.addEffect(new MobEffectInstance(MobEffects.CONFUSION, 40, 0, false, false));
+                        nearby.addEffect(new MobEffectInstance(MobEffects.CONFUSION, 200, 0, false, true));
                         if (HygieneManager.tryLevel3Message(uuid, nearbyUUID)) {
-                            nearby.sendSystemMessage(Component.literal(
-                                "§cLa puanteur d'une personne se fait ressentir, vous avez envie de gerber..."));
+                            nearby.sendSystemMessage(Component.literal("§8§oLa puanteur d'une personne se fait ressentir, vous avez envie de gerber..."));
                         }
                     }
                 }
@@ -104,6 +114,17 @@ public class HygieneEventHandler {
                 HygieneManager.retainProximity(uuid, nearbyUUIDs);
             } else {
                 HygieneManager.clearProximity(uuid);
+            }
+
+            // --- Niveau 4 : nausée sur soi + sur tous les joueurs < 7 blocs ---
+            if (dirtLevel >= 4) {
+                player.addEffect(new MobEffectInstance(MobEffects.CONFUSION, 200, 0, false, true));
+                for (ServerPlayer nearby : getNearbyPlayers(player, server, 7.0)) {
+                    nearby.addEffect(new MobEffectInstance(MobEffects.CONFUSION, 200, 0, false, true));
+                    if (HygieneManager.tryLevel4Message(uuid, nearby.getUUID())) {
+                        nearby.sendSystemMessage(Component.literal("§8§oUne odeur pestilentielle vous envahit... vous n'arrivez plus à respirer."));
+                    }
+                }
             }
         }
     }
