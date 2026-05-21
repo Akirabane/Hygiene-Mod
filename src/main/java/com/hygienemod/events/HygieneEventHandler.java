@@ -93,9 +93,10 @@ public class HygieneEventHandler {
                 }
             }
 
-            // --- Niveau 3 : nausée aux joueurs proches après 5 s (< 5 blocs) ---
+            // --- Niveau 3 : nausée sur soi + aux joueurs proches après 5 s (< 3 blocs) ---
             if (dirtLevel >= 3) {
-                List<ServerPlayer> nearbyPlayers = getNearbyPlayers(player, server, 5.0);
+                player.addEffect(new MobEffectInstance(MobEffects.CONFUSION, 200, 0, false, true));
+                List<ServerPlayer> nearbyPlayers = getNearbyPlayers(player, server, 3.0);
                 Set<UUID> nearbyUUIDs = new HashSet<>();
 
                 for (ServerPlayer nearby : nearbyPlayers) {
@@ -116,10 +117,10 @@ public class HygieneEventHandler {
                 HygieneManager.clearProximity(uuid);
             }
 
-            // --- Niveau 4 : nausée sur soi + sur tous les joueurs < 7 blocs ---
+            // --- Niveau 4 : nausée sur soi + sur tous les joueurs < 4 blocs ---
             if (dirtLevel >= 4) {
                 player.addEffect(new MobEffectInstance(MobEffects.CONFUSION, 200, 0, false, true));
-                for (ServerPlayer nearby : getNearbyPlayers(player, server, 7.0)) {
+                for (ServerPlayer nearby : getNearbyPlayers(player, server, 4.0)) {
                     nearby.addEffect(new MobEffectInstance(MobEffects.CONFUSION, 200, 0, false, true));
                     if (HygieneManager.tryLevel4Message(uuid, nearby.getUUID())) {
                         nearby.sendSystemMessage(Component.literal("§8§oUne odeur pestilentielle vous envahit... vous n'arrivez plus à respirer."));

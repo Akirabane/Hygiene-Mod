@@ -18,11 +18,11 @@ public class HygieneManager {
     private static final Map<UUID, Set<UUID>> level3Notified = new HashMap<>();
     private static final Map<UUID, Set<UUID>> level4Notified = new HashMap<>();
 
-    public static final long DIRTY_DELAY_MS   =  30L * 1000;  // TEST: 30 s → level 1  (prod: 60 min)
-    public static final long LEVEL_2_EXTRA_MS =  30L * 1000;  // TEST: +30 s → level 2  (prod: +30 min)
-    public static final long LEVEL_3_EXTRA_MS =  90L * 1000;  // TEST: +90 s → level 3  (prod: +60 min)
-    public static final long LEVEL_4_EXTRA_MS = 150L * 1000;  // TEST: +150 s → level 4 (prod: +120 min)
-    public static final long SOAP_BONUS_MS    =  15L * 1000;  // TEST: +15 s            (prod: +30 min)
+    public static final long DIRTY_DELAY_MS   =  60L * 60 * 1000;  // 1h → level 1
+    public static final long LEVEL_2_EXTRA_MS =  30L * 60 * 1000;  // +30 min → level 2 (1h30 total)
+    public static final long LEVEL_3_EXTRA_MS =  60L * 60 * 1000;  // +60 min → level 3 (2h total)
+    public static final long LEVEL_4_EXTRA_MS =  90L * 60 * 1000;  // +90 min → level 4 (2h30 total)
+    public static final long SOAP_BONUS_MS    =  30L * 60 * 1000;  // +30 min
 
     public static void initPlayer(UUID uuid) {
         nextDirtyTime.computeIfAbsent(uuid, k -> System.currentTimeMillis() + DIRTY_DELAY_MS);
