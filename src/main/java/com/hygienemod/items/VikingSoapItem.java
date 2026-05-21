@@ -1,17 +1,24 @@
 package com.hygienemod.items;
 
 import com.hygienemod.HygieneManager;
+import com.hygienemod.HygieneManager.BathType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.level.material.Fluids;
+import net.minecraftforge.registries.ForgeRegistries;
 
 public class VikingSoapItem extends Item {
+
+    private static final ResourceLocation WASHING_TUB_ID = new ResourceLocation("conquest", "wooden_washing_tub");
 
     public VikingSoapItem() {
         super(new Properties().stacksTo(16));
@@ -22,20 +29,42 @@ public class VikingSoapItem extends Item {
         ItemStack stack = player.getItemInHand(hand);
 
         if (!level.isClientSide) {
-            if (isInQualifyingWater(level, player)) {
-                HygieneManager.applySoapBonus(player.getUUID());
-                if (!player.getAbilities().instabuild) {
-                    stack.shrink(1);
+            BathType context = null;
+            if (isOnFilledTub(level, player)) {
+                context = BathType.TUB;
+            } else if (isInQualifyingWater(level, player)) {
+                context = BathType.RIVER;
+            }
+
+            if (context != null) {
+                HygieneManager.applySoapBonus(player.getUUID(), context);
+                if (!player.getAbilities().instabuild) stack.shrink(1);
+                if (context == BathType.TUB) {
+                    player.sendSystemMessage(Component.literal("§8§oVous vous frottez avec le savon viking dans le baquet. Une odeur de cendre et de suif s'échappe."));
+                } else {
+                    player.sendSystemMessage(Component.literal("§8§oVous vous frottez avec le savon viking dans l'eau froide. L'odeur de suif disparaît légèrement."));
                 }
-                player.sendSystemMessage(Component.literal("§8§oVous vous lavez avec le savon viking... L'odeur de cendre et de suif disparaît."));
                 return InteractionResultHolder.consume(stack);
             } else {
-                player.sendSystemMessage(Component.literal("§8§oVous devez être immergé dans une étendue d'eau suffisante pour utiliser le savon."));
+                player.sendSystemMessage(Component.literal("§8§oVous devez être dans l'eau ou sur un baquet rempli pour utiliser le savon."));
                 return InteractionResultHolder.fail(stack);
             }
         }
 
         return InteractionResultHolder.pass(stack);
+    }
+
+    private boolean isOnFilledTub(Level level, Player player) {
+        BlockPos below = player.blockPosition().below();
+        BlockState state = level.getBlockState(below);
+        ResourceLocation key = ForgeRegistries.BLOCKS.getKey(state.getBlock());
+        if (!WASHING_TUB_ID.equals(key)) return false;
+        for (Property<?> prop : state.getProperties()) {
+            if (prop.getName().equals("level")) {
+                return Integer.parseInt(state.getValue(prop).toString()) > 0;
+            }
+        }
+        return false;
     }
 
     private boolean isInQualifyingWater(Level level, Player player) {

@@ -1,17 +1,22 @@
 package com.hygienemod.events;
 
 import com.hygienemod.HygieneManager;
+import com.hygienemod.HygieneManager.BathType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
 import java.util.*;
@@ -19,8 +24,10 @@ import java.util.*;
 public class HygieneEventHandler {
 
     private int tickCounter = 0;
-    private static final int CHECK_INTERVAL = 20;       // toutes les secondes
-    private static final long PROXIMITY_MS  = 5_000L;  // 5 secondes avant nausée
+    private static final int CHECK_INTERVAL = 20;
+    private static final long PROXIMITY_MS   = 5_000L;
+
+    private static final ResourceLocation WASHING_TUB_ID = new ResourceLocation("conquest", "wooden_washing_tub");
 
     @SubscribeEvent
     public void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
@@ -45,24 +52,62 @@ public class HygieneEventHandler {
 
             // --- Créatif : immunité totale ---
             if (player.isCreative()) {
-                HygieneManager.resetBath(uuid);
+                HygieneManager.resetBath(uuid, BathType.TUB);
                 continue;
             }
 
-            // --- Détection bain ---
-            if (isInQualifyingWater(player)) {
-                int prevLevel = HygieneManager.getDirtLevel(uuid);
-                HygieneManager.resetBath(uuid);
-                if (prevLevel > 0) {
-                    player.sendSystemMessage(Component.literal("§8§oL'eau froide emporte l'odeur. Vous vous sentez propre."));
+            // --- Détection bain actif ---
+            BathType activeBath = getActiveBathType(player);
+
+            if (activeBath != null) {
+                boolean soakingWrong = HygieneManager.isSoaking(uuid)
+                        && HygieneManager.getSoakingType(uuid) != activeBath;
+
+                if (!HygieneManager.isSoaking(uuid) || soakingWrong) {
+                    // Démarrer (ou recommencer) le trempage
+                    HygieneManager.startSoaking(uuid, activeBath);
+                    if (activeBath == BathType.TUB) {
+                        player.sendSystemMessage(Component.literal("§8§oVous vous installez dans le baquet et commencez à vous laver..."));
+                    } else {
+                        player.sendSystemMessage(Component.literal("§8§oVous entrez dans l'eau et commencez à vous laver..."));
+                    }
+                } else {
+                    // Trempage en cours — vérifier progression
+                    long elapsed  = HygieneManager.getSoakElapsed(uuid);
+                    long required = (activeBath == BathType.TUB) ? HygieneManager.TUB_SOAK_MS : HygieneManager.RIVER_SOAK_MS;
+
+                    if (!HygieneManager.isSoakMidMessageSent(uuid) && elapsed >= required / 2) {
+                        HygieneManager.setSoakMidMessageSent(uuid);
+                        if (activeBath == BathType.TUB) {
+                            player.sendSystemMessage(Component.literal("§8§oVous vous lavez... Encore un moment dans le baquet..."));
+                        } else {
+                            player.sendSystemMessage(Component.literal("§8§oVous continuez à vous laver dans l'eau froide..."));
+                        }
+                    }
+
+                    if (elapsed >= required) {
+                        HygieneManager.resetBath(uuid, activeBath);
+                        if (activeBath == BathType.TUB) {
+                            player.sendSystemMessage(Component.literal("§8§oVous vous sentez propre et revigoré. L'eau du baquet a fait son effet."));
+                        } else {
+                            player.sendSystemMessage(Component.literal("§8§oL'eau froide emporte l'odeur. Vous vous sentez propre."));
+                        }
+                        continue; // propre, on passe au joueur suivant
+                    }
                 }
-                continue;
+                // Toujours en train de se laver → la logique saleté s'applique quand même
+            } else {
+                // Sorti de l'eau / du baquet → reset trempage silencieux
+                if (HygieneManager.isSoaking(uuid)) {
+                    HygieneManager.clearSoaking(uuid);
+                }
             }
 
-            int dirtLevel   = HygieneManager.getDirtLevel(uuid);
+            // --- Logique saleté ---
+            int dirtLevel    = HygieneManager.getDirtLevel(uuid);
             int lastNotified = HygieneManager.getLastNotifiedLevel(uuid);
 
-            // --- Transitions : message au joueur lui-même à chaque nouveau niveau ---
+            // Transitions : message au joueur lui-même à chaque nouveau niveau
             if (dirtLevel >= 1 && lastNotified < 1) {
                 player.sendSystemMessage(Component.literal("§8§oVous commencez à sentir mauvais..."));
                 HygieneManager.setLastNotifiedLevel(uuid, 1);
@@ -84,7 +129,7 @@ public class HygieneEventHandler {
                 lastNotified = 4;
             }
 
-            // --- Niveau 2 : message aux joueurs proches (< 3 blocs) ---
+            // Niveau 2 : message aux joueurs proches (< 3 blocs)
             if (dirtLevel >= 2) {
                 for (ServerPlayer nearby : getNearbyPlayers(player, server, 3.0)) {
                     if (HygieneManager.tryLevel2Message(uuid, nearby.getUUID())) {
@@ -93,7 +138,7 @@ public class HygieneEventHandler {
                 }
             }
 
-            // --- Niveau 3 : nausée sur soi + aux joueurs proches après 5 s (< 3 blocs) ---
+            // Niveau 3 : nausée sur soi + aux joueurs proches après 5 s (< 3 blocs)
             if (dirtLevel >= 3) {
                 player.addEffect(new MobEffectInstance(MobEffects.CONFUSION, 200, 0, false, false));
                 List<ServerPlayer> nearbyPlayers = getNearbyPlayers(player, server, 3.0);
@@ -117,7 +162,7 @@ public class HygieneEventHandler {
                 HygieneManager.clearProximity(uuid);
             }
 
-            // --- Niveau 4 : nausée sur soi + sur tous les joueurs < 5 blocs ---
+            // Niveau 4 : nausée sur soi + sur tous les joueurs < 5 blocs
             if (dirtLevel >= 4) {
                 player.addEffect(new MobEffectInstance(MobEffects.CONFUSION, 200, 0, false, false));
                 for (ServerPlayer nearby : getNearbyPlayers(player, server, 5.0)) {
@@ -130,7 +175,26 @@ public class HygieneEventHandler {
         }
     }
 
-    // Vérifie que le joueur est dans un volume d'eau 2x2x2 minimum
+    // Renvoie le type de bain actif pour ce joueur, ou null s'il n'est ni dans un tub ni dans l'eau
+    private BathType getActiveBathType(ServerPlayer player) {
+        if (isOnFilledTub(player)) return BathType.TUB;
+        if (isInQualifyingWater(player)) return BathType.RIVER;
+        return null;
+    }
+
+    private boolean isOnFilledTub(ServerPlayer player) {
+        BlockPos below = player.blockPosition().below();
+        BlockState state = player.level().getBlockState(below);
+        ResourceLocation key = ForgeRegistries.BLOCKS.getKey(state.getBlock());
+        if (!WASHING_TUB_ID.equals(key)) return false;
+        for (Property<?> prop : state.getProperties()) {
+            if (prop.getName().equals("level")) {
+                return Integer.parseInt(state.getValue(prop).toString()) > 0;
+            }
+        }
+        return false;
+    }
+
     private boolean isInQualifyingWater(ServerPlayer player) {
         Level level = player.level();
         BlockPos feet = player.blockPosition();
