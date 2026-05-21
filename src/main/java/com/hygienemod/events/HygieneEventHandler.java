@@ -183,13 +183,16 @@ public class HygieneEventHandler {
     }
 
     private boolean isOnFilledTub(ServerPlayer player) {
-        BlockPos below = player.blockPosition().below();
-        BlockState state = player.level().getBlockState(below);
-        ResourceLocation key = ForgeRegistries.BLOCKS.getKey(state.getBlock());
-        if (!WASHING_TUB_ID.equals(key)) return false;
-        for (Property<?> prop : state.getProperties()) {
-            if (prop.getName().equals("level")) {
-                return Integer.parseInt(state.getValue(prop).toString()) > 0;
+        BlockPos feet = player.blockPosition();
+        for (BlockPos pos : new BlockPos[]{feet, feet.below()}) {
+            BlockState state = player.level().getBlockState(pos);
+            ResourceLocation key = ForgeRegistries.BLOCKS.getKey(state.getBlock());
+            if (WASHING_TUB_ID.equals(key)) {
+                for (Property<?> prop : state.getProperties()) {
+                    if (prop.getName().equals("level")) {
+                        return Integer.parseInt(state.getValue(prop).toString()) > 0;
+                    }
+                }
             }
         }
         return false;
