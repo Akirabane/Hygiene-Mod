@@ -1,0 +1,18 @@
+# Gradle
+.gradle/
+build/
+out/
+run/
+mcmodsrepo/
+src/generated/
+
+# IDE
+.idea/
+.eclipse/
+*.iml
+*.ipr
+*.iws
+
+# OS
+.DS_Store
+Thumbs.db
