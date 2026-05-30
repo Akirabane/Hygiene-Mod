@@ -1,0 +1,12 @@
+{
+    "type": "minecraft:crafting_shapeless",
+    "ingredients": [
+        {"item": "minecraft:charcoal"},
+        {"item": "minecraft:charcoal"},
+        {"item": "minecraft:raw_porkchop"}
+    ],
+    "result": {
+        "item": "hygiene:viking_soap",
+        "count": 3
+    }
+}
